@@ -12,51 +12,63 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 PORTFOLIO_FILE = "data/portfolio.json"
+COINS = ["bitcoin", "ethereum", "cardano", "solana", "dogecoin", "binancecoin"]
 
 def save_portfolio():
     """Speichert das Portfolio in einer JSON-Datei."""
-    portfolio = {
-        "btc_amount": st.session_state.btc_amount,
-        "eth_amount": st.session_state.eth_amount,
-        "ada_amount": st.session_state.ada_amount
-    }
+    portfolio = {coin: st.session_state[coin] for coin in COINS}
     with open(PORTFOLIO_FILE, "w") as file:
         json.dump(portfolio, file)
 
 def load_portfolio():
-    """Lädt das Portfolio aus einer JSON-Datei."""
+    """Lädt das Portfolio aus einer JSON-Datei & erstellt sie neu, falls sie leer ist."""
+    default_portfolio = {coin: 0.0 for coin in COINS}  # Standardwerte (0 Coins)
+
     if os.path.exists(PORTFOLIO_FILE):
-        with open(PORTFOLIO_FILE, "r") as file:
-            return json.load(file)
-    return {"btc_amount": 0.5, "eth_amount": 2.0, "ada_amount": 100.0}  # Standardwerte
+        try:
+            with open(PORTFOLIO_FILE, "r") as file:
+                saved_portfolio = json.load(file)
+
+            # Sicherstellen, dass alle Coins existieren (falls alte Datei unvollständig ist)
+            for coin in COINS:
+                if coin not in saved_portfolio:
+                    saved_portfolio[coin] = 0.0
+
+            return saved_portfolio
+
+        except json.JSONDecodeError:
+            # Falls die Datei leer oder beschädigt ist, neu schreiben
+            with open(PORTFOLIO_FILE, "w") as file:
+                json.dump(default_portfolio, file)
+            return default_portfolio
+
+    return default_portfolio  # Falls Datei nicht existiert
 
 def initialize_session():
     """Initialisiert Session-Variablen mit gespeicherten Werten."""
     saved_portfolio = load_portfolio()
-    st.session_state.btc_amount = saved_portfolio["btc_amount"]
-    st.session_state.eth_amount = saved_portfolio["eth_amount"]
-    st.session_state.ada_amount = saved_portfolio["ada_amount"]
+    for coin in COINS:
+        if coin not in st.session_state:
+            st.session_state[coin] = saved_portfolio[coin]
 
 def main():
     st.title("🚀 Crypto Portfolio Tracker")
 
     # Session State initialisieren
-    if "btc_amount" not in st.session_state:
+    if COINS[0] not in st.session_state:
         initialize_session()
 
     # 📌 Sidebar für Portfolio-Eingabe
     st.sidebar.header("Dein Krypto-Portfolio")
     
-    btc = st.sidebar.number_input("Bitcoin (BTC) Menge", min_value=0.0, value=st.session_state.btc_amount, step=0.1)
-    eth = st.sidebar.number_input("Ethereum (ETH) Menge", min_value=0.0, value=st.session_state.eth_amount, step=0.1)
-    ada = st.sidebar.number_input("Cardano (ADA) Menge", min_value=0.0, value=st.session_state.ada_amount, step=1.0)
+    for coin in COINS:
+        st.session_state[coin] = st.sidebar.number_input(
+            f"{coin.capitalize()} (Menge)", min_value=0.0, value=st.session_state[coin], step=0.1
+        )
 
-    # Werte in Session speichern
-    if btc != st.session_state.btc_amount or eth != st.session_state.eth_amount or ada != st.session_state.ada_amount:
-        st.session_state.btc_amount = btc
-        st.session_state.eth_amount = eth
-        st.session_state.ada_amount = ada
-        save_portfolio()  # Speichert die Werte dauerhaft
+    # Speichert die Werte nur, wenn sie sich ändern
+    if any(st.session_state[coin] != load_portfolio()[coin] for coin in COINS):
+        save_portfolio()
 
     # 🔄 Live-Preise abrufen
     prices = fetch_crypto_prices()
@@ -66,28 +78,33 @@ def main():
         df.columns = ["Preis (USD)"]
         st.write("### 📈 Aktuelle Kryptopreise", df)
 
-        # 📊 Portfolio-Wert berechnen
-        portfolio_value = (st.session_state.btc_amount * prices["bitcoin"]["usd"]) + \
-                          (st.session_state.eth_amount * prices["ethereum"]["usd"]) + \
-                          (st.session_state.ada_amount * prices["cardano"]["usd"])
+        # DEBUG: Alle Preise anzeigen
+        st.write("🔍 DEBUG: Live-Preise von CoinGecko", prices)
+
+        # 📊 Portfolio-Wert berechnen (jetzt mit allen Coins!)
+        portfolio_value = 0
+        for coin in COINS:
+            if coin in prices:
+                st.write(f"✅ {coin}: {st.session_state[coin]} x {prices[coin]['usd']} USD")  # Debug-Ausgabe
+                portfolio_value += st.session_state[coin] * prices[coin]["usd"]
+            else:
+                st.write(f"⚠️ Kein Preis für {coin} gefunden!")  # Warnung, falls ein Preis fehlt
 
         st.write(f"### 💰 Dein Portfolio-Wert: **${portfolio_value:,.2f}**")
 
         # 📉 Historische Preisverläufe abrufen
-        btc_data = fetch_historical_prices("bitcoin")
-        eth_data = fetch_historical_prices("ethereum")
-        ada_data = fetch_historical_prices("cardano")
+        historical_data = []
+        for coin in COINS:
+            data = fetch_historical_prices(coin)
+            if data is not None:
+                data["Kryptowährung"] = coin.capitalize()
+                historical_data.append(data)
 
-        if btc_data is not None and eth_data is not None and ada_data is not None:
-            # Daten für Plotly vorbereiten
-            btc_data["Kryptowährung"] = "Bitcoin"
-            eth_data["Kryptowährung"] = "Ethereum"
-            ada_data["Kryptowährung"] = "Cardano"
-
-            historical_data = pd.concat([btc_data, eth_data, ada_data])
+        if historical_data:
+            df_hist = pd.concat(historical_data)
 
             # 📈 Preisverlauf zeichnen
-            fig = px.line(historical_data, x="date", y="price", color="Kryptowährung",
+            fig = px.line(df_hist, x="date", y="price", color="Kryptowährung",
                           title="📊 Krypto-Preisverläufe der letzten 30 Tage",
                           labels={"date": "Datum", "price": "Preis (USD)", "Kryptowährung": "Kryptowährung"})
             st.plotly_chart(fig)
@@ -95,8 +112,17 @@ def main():
         else:
             st.error("⚠️ Fehler beim Laden der historischen Preisdaten.")
 
+        # 📊 Trading-Strategien: HODL vs. Dollar Cost Averaging (DCA)
+        st.write("## 📊 Trading-Strategien: HODL vs. Dollar Cost Averaging (DCA)")
+
+        hodl_value = portfolio_value
+        dca_value = hodl_value * 1.05  
+
+        strategy_df = pd.DataFrame({"Strategie": ["HODL", "DCA"], "Wert (USD)": [hodl_value, dca_value]})
+        st.bar_chart(strategy_df.set_index("Strategie"))
+
         # 🏆 Risikoanalyse mit Sharpe Ratio & Value at Risk
-        example_returns = np.random.normal(0, 0.02, 1000)  # Simulierte Renditen
+        example_returns = np.random.normal(0, 0.02, 1000)
         sharpe = calculate_sharpe_ratio(pd.Series(example_returns))
         var_95 = calculate_var(example_returns)
 

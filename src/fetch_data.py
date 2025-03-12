@@ -1,6 +1,5 @@
 import requests
 import pandas as pd
-import time
 import streamlit as st
 
 # Cache für API-Anfragen (Verhindert zu viele Anfragen in kurzer Zeit)
@@ -9,7 +8,7 @@ def fetch_crypto_prices():
     """Holt die aktuellen Krypto-Preise von CoinGecko."""
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
-        "ids": "bitcoin,ethereum,cardano",
+        "ids": "bitcoin,ethereum,cardano,solana,dogecoin,binancecoin",
         "vs_currencies": "usd"
     }
     try:
