@@ -1,7 +1,10 @@
 import requests
 import pandas as pd
 import time
+import streamlit as st
 
+# Cache für API-Anfragen (Verhindert zu viele Anfragen in kurzer Zeit)
+@st.cache_data(ttl=60)  # Daten für 60 Sekunden cachen
 def fetch_crypto_prices():
     """Holt die aktuellen Krypto-Preise von CoinGecko."""
     url = "https://api.coingecko.com/api/v3/simple/price"
@@ -20,6 +23,7 @@ def fetch_crypto_prices():
         print(f"⚠️ API-Fehler: {e}")
         return None
 
+@st.cache_data(ttl=300)  # Historische Daten für 5 Minuten cachen
 def fetch_historical_prices(crypto_id):
     """Holt die historischen Preise der letzten 30 Tage von CoinGecko."""
     url = f"https://api.coingecko.com/api/v3/coins/{crypto_id}/market_chart"
@@ -33,7 +37,6 @@ def fetch_historical_prices(crypto_id):
         response.raise_for_status()
         data = response.json()
         
-        # Extrahiert Zeitstempel und Preise
         if "prices" in data:
             df = pd.DataFrame(data["prices"], columns=["timestamp", "price"])
             df["date"] = pd.to_datetime(df["timestamp"], unit="ms").dt.date
@@ -44,11 +47,3 @@ def fetch_historical_prices(crypto_id):
     except requests.exceptions.RequestException as e:
         print(f"⚠️ API-Fehler für {crypto_id}: {e}")
         return None
-
-# Testlauf, um Daten zu prüfen
-if __name__ == "__main__":
-    print("🔄 Abrufe aktuelle Preise...")
-    print(fetch_crypto_prices())
-    
-    print("\n📊 Abrufe historische Preise für Bitcoin...")
-    print(fetch_historical_prices("bitcoin"))

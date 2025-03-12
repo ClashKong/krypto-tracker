@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from src.fetch_data import fetch_crypto_prices, fetch_historical_prices
-from src.analysis import calculate_sharpe_ratio
+from src.analysis import calculate_sharpe_ratio, calculate_var
+import numpy as np
 import sys
 import os
 
@@ -55,10 +56,13 @@ def main():
         else:
             st.error("⚠️ Fehler beim Laden der historischen Preisdaten.")
 
-        # 🏆 Risikoanalyse mit Sharpe Ratio
-        example_returns = pd.Series([0.02, 0.01, -0.005, 0.03, -0.02])
-        sharpe = calculate_sharpe_ratio(example_returns)
+        # 🏆 Risikoanalyse mit Sharpe Ratio & Value at Risk
+        example_returns = np.random.normal(0, 0.02, 1000)  # Simulierte Renditen
+        sharpe = calculate_sharpe_ratio(pd.Series(example_returns))
+        var_95 = calculate_var(example_returns)
+
         st.write(f"### 📉 Sharpe Ratio: **{sharpe:.2f}**")
+        st.write(f"### 🔥 Value at Risk (95%): **{var_95}% Verlust-Wahrscheinlichkeit**")
 
     else:
         st.error("⚠️ Fehler beim Abrufen der Krypto-Preise von CoinGecko.")
