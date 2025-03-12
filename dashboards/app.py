@@ -10,14 +10,27 @@ import os
 # Sicherstellen, dass src als Modul erkannt wird
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+def initialize_session():
+    """Initialisiert die Session-Variablen, falls sie nicht existieren."""
+    if "btc_amount" not in st.session_state:
+        st.session_state.btc_amount = 0.5
+    if "eth_amount" not in st.session_state:
+        st.session_state.eth_amount = 2.0
+    if "ada_amount" not in st.session_state:
+        st.session_state.ada_amount = 100.0
+
 def main():
     st.title("🚀 Crypto Portfolio Tracker")
 
+    # Session State initialisieren
+    initialize_session()
+
     # 📌 Sidebar für Portfolio-Eingabe
     st.sidebar.header("Dein Krypto-Portfolio")
-    btc_amount = st.sidebar.number_input("Bitcoin (BTC) Menge", min_value=0.0, value=0.5, step=0.1)
-    eth_amount = st.sidebar.number_input("Ethereum (ETH) Menge", min_value=0.0, value=2.0, step=0.1)
-    ada_amount = st.sidebar.number_input("Cardano (ADA) Menge", min_value=0.0, value=100.0, step=1.0)
+    
+    st.session_state.btc_amount = st.sidebar.number_input("Bitcoin (BTC) Menge", min_value=0.0, value=st.session_state.btc_amount, step=0.1)
+    st.session_state.eth_amount = st.sidebar.number_input("Ethereum (ETH) Menge", min_value=0.0, value=st.session_state.eth_amount, step=0.1)
+    st.session_state.ada_amount = st.sidebar.number_input("Cardano (ADA) Menge", min_value=0.0, value=st.session_state.ada_amount, step=1.0)
 
     # 🔄 Live-Preise abrufen
     prices = fetch_crypto_prices()
@@ -28,9 +41,9 @@ def main():
         st.write("### 📈 Aktuelle Kryptopreise", df)
 
         # 📊 Portfolio-Wert berechnen
-        portfolio_value = (btc_amount * prices["bitcoin"]["usd"]) + \
-                          (eth_amount * prices["ethereum"]["usd"]) + \
-                          (ada_amount * prices["cardano"]["usd"])
+        portfolio_value = (st.session_state.btc_amount * prices["bitcoin"]["usd"]) + \
+                          (st.session_state.eth_amount * prices["ethereum"]["usd"]) + \
+                          (st.session_state.ada_amount * prices["cardano"]["usd"])
 
         st.write(f"### 💰 Dein Portfolio-Wert: **${portfolio_value:,.2f}**")
 
