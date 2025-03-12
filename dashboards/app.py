@@ -1,36 +1,62 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import json
+import os
 from src.fetch_data import fetch_crypto_prices, fetch_historical_prices
 from src.analysis import calculate_sharpe_ratio, calculate_var
 import numpy as np
 import sys
-import os
 
 # Sicherstellen, dass src als Modul erkannt wird
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+PORTFOLIO_FILE = "data/portfolio.json"
+
+def save_portfolio():
+    """Speichert das Portfolio in einer JSON-Datei."""
+    portfolio = {
+        "btc_amount": st.session_state.btc_amount,
+        "eth_amount": st.session_state.eth_amount,
+        "ada_amount": st.session_state.ada_amount
+    }
+    with open(PORTFOLIO_FILE, "w") as file:
+        json.dump(portfolio, file)
+
+def load_portfolio():
+    """Lädt das Portfolio aus einer JSON-Datei."""
+    if os.path.exists(PORTFOLIO_FILE):
+        with open(PORTFOLIO_FILE, "r") as file:
+            return json.load(file)
+    return {"btc_amount": 0.5, "eth_amount": 2.0, "ada_amount": 100.0}  # Standardwerte
+
 def initialize_session():
-    """Initialisiert die Session-Variablen, falls sie nicht existieren."""
-    if "btc_amount" not in st.session_state:
-        st.session_state.btc_amount = 0.5
-    if "eth_amount" not in st.session_state:
-        st.session_state.eth_amount = 2.0
-    if "ada_amount" not in st.session_state:
-        st.session_state.ada_amount = 100.0
+    """Initialisiert Session-Variablen mit gespeicherten Werten."""
+    saved_portfolio = load_portfolio()
+    st.session_state.btc_amount = saved_portfolio["btc_amount"]
+    st.session_state.eth_amount = saved_portfolio["eth_amount"]
+    st.session_state.ada_amount = saved_portfolio["ada_amount"]
 
 def main():
     st.title("🚀 Crypto Portfolio Tracker")
 
     # Session State initialisieren
-    initialize_session()
+    if "btc_amount" not in st.session_state:
+        initialize_session()
 
     # 📌 Sidebar für Portfolio-Eingabe
     st.sidebar.header("Dein Krypto-Portfolio")
     
-    st.session_state.btc_amount = st.sidebar.number_input("Bitcoin (BTC) Menge", min_value=0.0, value=st.session_state.btc_amount, step=0.1)
-    st.session_state.eth_amount = st.sidebar.number_input("Ethereum (ETH) Menge", min_value=0.0, value=st.session_state.eth_amount, step=0.1)
-    st.session_state.ada_amount = st.sidebar.number_input("Cardano (ADA) Menge", min_value=0.0, value=st.session_state.ada_amount, step=1.0)
+    btc = st.sidebar.number_input("Bitcoin (BTC) Menge", min_value=0.0, value=st.session_state.btc_amount, step=0.1)
+    eth = st.sidebar.number_input("Ethereum (ETH) Menge", min_value=0.0, value=st.session_state.eth_amount, step=0.1)
+    ada = st.sidebar.number_input("Cardano (ADA) Menge", min_value=0.0, value=st.session_state.ada_amount, step=1.0)
+
+    # Werte in Session speichern
+    if btc != st.session_state.btc_amount or eth != st.session_state.eth_amount or ada != st.session_state.ada_amount:
+        st.session_state.btc_amount = btc
+        st.session_state.eth_amount = eth
+        st.session_state.ada_amount = ada
+        save_portfolio()  # Speichert die Werte dauerhaft
 
     # 🔄 Live-Preise abrufen
     prices = fetch_crypto_prices()
