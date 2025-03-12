@@ -22,14 +22,13 @@ def save_portfolio():
 
 def load_portfolio():
     """Lädt das Portfolio aus einer JSON-Datei & erstellt sie neu, falls sie leer ist."""
-    default_portfolio = {coin: 0.0 for coin in COINS}  # Standardwerte (0 Coins)
+    default_portfolio = {coin: 0.0 for coin in COINS}
 
     if os.path.exists(PORTFOLIO_FILE):
         try:
             with open(PORTFOLIO_FILE, "r") as file:
                 saved_portfolio = json.load(file)
 
-            # Sicherstellen, dass alle Coins existieren (falls alte Datei unvollständig ist)
             for coin in COINS:
                 if coin not in saved_portfolio:
                     saved_portfolio[coin] = 0.0
@@ -37,12 +36,11 @@ def load_portfolio():
             return saved_portfolio
 
         except json.JSONDecodeError:
-            # Falls die Datei leer oder beschädigt ist, neu schreiben
             with open(PORTFOLIO_FILE, "w") as file:
                 json.dump(default_portfolio, file)
             return default_portfolio
 
-    return default_portfolio  # Falls Datei nicht existiert
+    return default_portfolio
 
 def initialize_session():
     """Initialisiert Session-Variablen mit gespeicherten Werten."""
@@ -54,61 +52,59 @@ def initialize_session():
 def main():
     st.title("🚀 Crypto Portfolio Tracker")
 
-    # Session State initialisieren
     if COINS[0] not in st.session_state:
         initialize_session()
 
     # 📌 Sidebar für Portfolio-Eingabe
-    st.sidebar.header("Dein Krypto-Portfolio")
+    st.sidebar.header("⚙️ Einstellungen & Portfolio")
+    st.sidebar.markdown("---")  
     
+    st.sidebar.subheader("📊 Wähle deine Krypto-Mengen")
     for coin in COINS:
         st.session_state[coin] = st.sidebar.number_input(
-            f"{coin.capitalize()} (Menge)", min_value=0.0, value=st.session_state[coin], step=0.1
+            f"💰 {coin.capitalize()} (Menge)", min_value=0.0, value=st.session_state[coin], step=0.1
         )
 
-    # Speichert die Werte nur, wenn sie sich ändern
-    if any(st.session_state[coin] != load_portfolio()[coin] for coin in COINS):
-        save_portfolio()
+    st.sidebar.markdown("---")  
+    st.sidebar.write("✅ Deine Werte werden automatisch gespeichert!")
 
     # 🔄 Live-Preise abrufen
     prices = fetch_crypto_prices()
-    
+
     if prices:
         df = pd.DataFrame(prices).T
         df.columns = ["Preis (USD)"]
         st.write("### 📈 Aktuelle Kryptopreise", df)
 
-        # DEBUG: Alle Preise anzeigen
-        st.write("🔍 DEBUG: Live-Preise von CoinGecko", prices)
-
-        # 📊 Portfolio-Wert berechnen (jetzt mit allen Coins!)
+        # 📊 Portfolio-Wert berechnen
         portfolio_value = 0
         for coin in COINS:
             if coin in prices:
-                st.write(f"✅ {coin}: {st.session_state[coin]} x {prices[coin]['usd']} USD")  # Debug-Ausgabe
                 portfolio_value += st.session_state[coin] * prices[coin]["usd"]
-            else:
-                st.write(f"⚠️ Kein Preis für {coin} gefunden!")  # Warnung, falls ein Preis fehlt
 
         st.write(f"### 💰 Dein Portfolio-Wert: **${portfolio_value:,.2f}**")
 
         # 📉 Historische Preisverläufe abrufen
-        historical_data = []
-        for coin in COINS:
-            data = fetch_historical_prices(coin)
-            if data is not None:
-                data["Kryptowährung"] = coin.capitalize()
-                historical_data.append(data)
+        historical_data = fetch_historical_prices()  # ✅ Holt alle historischen Daten
 
         if historical_data:
-            df_hist = pd.concat(historical_data)
+            df_hist_list = []
+            for coin in COINS:
+                if coin in historical_data:
+                    df = historical_data[coin]
+                    df["Kryptowährung"] = coin.capitalize()
+                    df_hist_list.append(df)
 
-            # 📈 Preisverlauf zeichnen
-            fig = px.line(df_hist, x="date", y="price", color="Kryptowährung",
-                          title="📊 Krypto-Preisverläufe der letzten 30 Tage",
-                          labels={"date": "Datum", "price": "Preis (USD)", "Kryptowährung": "Kryptowährung"})
-            st.plotly_chart(fig)
-        
+            if df_hist_list:
+                df_hist = pd.concat(df_hist_list)
+
+                # 📈 Logarithmische Skalierung für bessere Sichtbarkeit
+                fig = px.line(df_hist, x="date", y="price", color="Kryptowährung",
+                              title="📊 Krypto-Preisverläufe der letzten 30 Tage",
+                              labels={"date": "Datum", "price": "Preis (USD)", "Kryptowährung": "Kryptowährung"},
+                              log_y=True)  # Logarithmische Skala
+                st.plotly_chart(fig)
+
         else:
             st.error("⚠️ Fehler beim Laden der historischen Preisdaten.")
 
